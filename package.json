@@ -1,0 +1,22 @@
+{
+  "name": "hackertube-tizen",
+  "version": "1.0.0",
+  "private": true,
+  "license": "MIT",
+  "description": "HackerTube for Samsung TVs: a Tizen web app for the videos Hacker News recommends.",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "dev": "node scripts/dev-server.mjs",
+    "check": "node scripts/check.mjs",
+    "package": "node scripts/package.mjs",
+    "package:tv": "node scripts/package.mjs --api https://hackertube-proxy.faisalalkheraiji.workers.dev",
+    "deploy:proxy": "npx wrangler@latest deploy --config proxy/wrangler.toml",
+    "test": "playwright test"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.64.1",
+    "fflate": "^0.8.3"
+  }
+}

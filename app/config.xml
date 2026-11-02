@@ -1,0 +1,63 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!--
+  HackerTube for Samsung TVs (Tizen).
+
+  This is a Tizen web application, not an Android app: Samsung TVs run Tizen,
+  so the Android TV build from github.com/ephraimduncan/hackertube.tv cannot
+  be installed on them. The UI and the API are the same, but the code here is
+  HTML, CSS and JavaScript.
+
+  To install it, see the README at the root of this repository.
+-->
+<widget xmlns:tizen="http://tizen.org/ns/widgets"
+        xmlns="http://www.w3.org/ns/widgets"
+        id="https://hackertube.tv/tizen"
+        version="1.0.0"
+        viewmodes="maximized">
+
+    <access origin="*" subdomains="true"/>
+    <tizen:allow-navigation href="*"/>
+
+    <!-- 10 alphanumeric characters for the package; the application id is
+         package + "." + name. These are the ids Tizen Homebrew and Tizen
+         Studio use to install and launch the app. -->
+    <tizen:application id="HkTubeTV01.HackerTube"
+                       package="HkTubeTV01"
+                       required_version="5.0"/>
+
+    <content src="index.html"/>
+    <feature name="http://tizen.org/feature/screen.size.all"/>
+    <icon src="icon.png"/>
+    <name>HackerTube</name>
+    <author>HackerTube Tizen contributors</author>
+    <description>The videos Hacker News recommends, played in the YouTube app on your TV.</description>
+
+    <!-- Keep the app at a real 1080p viewport on every TV. Without this some
+         firmware lays the page out as a small mobile-sized window. -->
+    <tizen:metadata key="http://tizen.org/metadata/app_ui_type/base_screen_resolution"
+                    value="extensive"/>
+    <tizen:metadata key="http://samsung.com/tv/metadata/prelaunch.support"
+                    value="true"/>
+    <tizen:metadata key="http://samsung.com/tv/metadata/use.network"
+                    value="true"/>
+
+    <!-- internet:        call the HackerTube API through the CORS proxy.
+         tv.inputdevice:   receive remote-control key events.
+         application.launch: hand the video to the YouTube app.
+         application.info:  check whether the YouTube app is installed. -->
+    <tizen:privilege name="http://tizen.org/privilege/internet"/>
+    <tizen:privilege name="http://tizen.org/privilege/tv.inputdevice"/>
+    <tizen:privilege name="http://tizen.org/privilege/application.launch"/>
+    <tizen:privilege name="http://tizen.org/privilege/application.info"/>
+
+    <tizen:profile name="tv-samsung"/>
+
+    <!-- hwkey-event is required for keydown events from the remote.
+         background-support is disabled so Back at the root exits the app. -->
+    <tizen:setting screen-orientation="landscape"
+                   context-menu="disable"
+                   background-support="disable"
+                   encryption="disable"
+                   install-location="auto"
+                   hwkey-event="enable"/>
+</widget>

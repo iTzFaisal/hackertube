@@ -1,0 +1,5 @@
+{
+  "name": "hackertube-proxy",
+  "private": true,
+  "type": "module"
+}

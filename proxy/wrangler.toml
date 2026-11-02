@@ -1,0 +1,8 @@
+name = "hackertube-proxy"
+main = "worker.js"
+compatibility_date = "2026-01-01"
+
+# A worker URL looks like:
+#   https://hackertube-proxy.<your-subdomain>.workers.dev
+# The app asks for /api/... on that host, and the worker forwards it to
+# https://hackertube.org/api/... with the CORS header the TV needs.
