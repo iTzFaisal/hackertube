@@ -12,7 +12,7 @@
 <widget xmlns:tizen="http://tizen.org/ns/widgets"
         xmlns="http://www.w3.org/ns/widgets"
         id="https://hackertube.tv/tizen"
-        version="1.0.0"
+        version="1.0.1"
         viewmodes="maximized">
 
     <access origin="*" subdomains="true"/>
@@ -30,7 +30,7 @@
     <icon src="icon.png"/>
     <name>HackerTube</name>
     <author>HackerTube Tizen contributors</author>
-    <description>The videos Hacker News recommends, played in the YouTube app on your TV.</description>
+    <description>The videos Hacker News recommends, with a built-in player and YouTube app fallback.</description>
 
     <!-- Keep the app at a real 1080p viewport on every TV. Without this some
          firmware lays the page out as a small mobile-sized window. -->

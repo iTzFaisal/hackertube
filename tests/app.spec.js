@@ -1,5 +1,96 @@
 import { test, expect } from '@playwright/test';
 
+const fakePlayer = `<!DOCTYPE html>
+<html><body>
+<script>
+(function () {
+  var state = 1;
+  var time = 5;
+  var duration = 100;
+
+  function send(message) {
+    message.source = 'hackertube-player';
+    parent.postMessage(message, '*');
+  }
+
+  window.addEventListener('message', function (event) {
+    var data = event.data || {};
+    if (data.source !== 'hackertube-app') {
+      return;
+    }
+    if (data.type === 'play') {
+      state = 1;
+      send({ type: 'state', state: state });
+    } else if (data.type === 'pause') {
+      state = 2;
+      send({ type: 'state', state: state });
+    } else if (data.type === 'seek') {
+      time = data.time;
+      send({ type: 'time', time: time, duration: duration, state: state });
+    } else if (data.type === 'ping') {
+      send({ type: 'state', state: state });
+      send({ type: 'time', time: time, duration: duration, state: state });
+    }
+  });
+
+  window.setTimeout(function () {
+    send({ type: 'ready', duration: duration });
+    send({ type: 'state', state: state });
+    send({ type: 'time', time: time, duration: duration, state: state });
+  }, 100);
+})();
+</script>
+</body></html>`;
+
+async function installTizenMock(page) {
+  await page.addInitScript(() => {
+    window.__controls = [];
+
+    function ApplicationControl(operation, uri, mime, data, dataList) {
+      this.operation = operation;
+      this.uri = uri;
+      this.data = dataList;
+    }
+
+    window.tizen = {
+      ApplicationControl: ApplicationControl,
+      ApplicationControlData: function (key, values) {
+        this.key = key;
+        this.values = values;
+      },
+      application: {
+        findAppControl: function (control, success) {
+          success([{ id: '111299001912', name: 'YouTube' }]);
+        },
+        getAppInfo: function () {
+          return { id: '111299001912', name: 'YouTube' };
+        },
+        launchAppControl: function (control, appId, success, failure) {
+          window.__controls.push({
+            operation: control.operation,
+            uri: control.uri,
+            appId: appId,
+            data: control.data
+          });
+          if (control.operation === 'http://tizen.org/appcontrol/operation/view') {
+            if (failure) {
+              failure();
+            }
+          } else if (success) {
+            success();
+          }
+        },
+        getCurrentApplication: function () {
+          return { exit: function () {} };
+        }
+      },
+      tvinputdevice: {
+        registerKey: function () {}
+      }
+    };
+  });
+}
+
 async function waitForImages(page) {
   await page.waitForFunction(() => {
     const images = Array.from(document.images).filter((image) => image.offsetWidth > 0);
@@ -128,67 +219,106 @@ test('home, details, search, categories and playlists', async ({ page }) => {
   expect(pageErrors).toEqual([]);
 });
 
-test('hands a video to the Samsung YouTube app', async ({ page }) => {
-  await page.addInitScript(() => {
-    window.__controls = [];
+test('plays a video in the in-app player', async ({ page }) => {
+  await page.route(/\/player\?v=/, (route) => route.fulfill({
+    status: 200,
+    contentType: 'text/html; charset=utf-8',
+    body: fakePlayer
+  }));
 
-    function ApplicationControl(operation, uri, mime, data, dataList) {
-      this.operation = operation;
-      this.uri = uri;
-      this.data = dataList;
-    }
+  await page.goto('/');
+  await page.waitForSelector('.page.active .card', { timeout: 60000 });
+  await focusACard(page);
 
-    window.tizen = {
-      ApplicationControl: ApplicationControl,
-      ApplicationControlData: function (key, values) {
-        this.key = key;
-        this.values = values;
-      },
-      application: {
-        findAppControl: function (control, success) {
-          success([{ id: '111299001912', name: 'YouTube' }]);
-        },
-        getAppInfo: function () {
-          return { id: '111299001912', name: 'YouTube' };
-        },
-        launchAppControl: function (control, appId, success, failure) {
-          window.__controls.push({
-            operation: control.operation,
-            uri: control.uri,
-            appId: appId,
-            data: control.data
-          });
-          if (control.operation === 'http://tizen.org/appcontrol/operation/view') {
-            if (failure) {
-              failure();
-            }
-          } else if (success) {
-            success();
-          }
-        },
-        getCurrentApplication: function () {
-          return { exit: function () {} };
-        }
-      },
-      tvinputdevice: {
-        registerKey: function () {}
-      }
-    };
+  const title = await page.evaluate(() => {
+    const card = document.activeElement && document.activeElement.closest('.card');
+    return card ? card.querySelector('.card-title').textContent : '';
   });
+
+  await page.keyboard.press('Enter');
+  await page.waitForSelector('.page.active.player-page', { timeout: 15000 });
+  expect(await page.locator('.player-page .player-title').innerText()).toBe(title);
+  await page.waitForFunction(() => {
+    const element = document.querySelector('.player-page .player-state');
+    return element && element.textContent === 'Playing';
+  }, null, { timeout: 10000 });
+
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => {
+    const element = document.querySelector('.player-page .player-state');
+    return element && element.textContent === 'Paused';
+  }, null, { timeout: 10000 });
+
+  await page.keyboard.press('ArrowRight');
+  await page.waitForFunction(() => {
+    const element = document.querySelector('.player-page .player-time');
+    return element && element.textContent.indexOf('0:15') === 0;
+  }, null, { timeout: 10000 });
+
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('.page.active .card', { timeout: 15000 });
+  expect(await page.locator('.player-page').count()).toBe(0);
+  expect(await page.evaluate(() => {
+    return document.getElementById('app').classList.contains('playing');
+  })).toBe(false);
+});
+
+test('offers the YouTube app when a video cannot be embedded', async ({ page }) => {
+  await installTizenMock(page);
+  await page.route(/\/player\?v=/, (route) => route.fulfill({
+    status: 200,
+    contentType: 'text/html; charset=utf-8',
+    body: `<script>parent.postMessage({source:'hackertube-player',` +
+      `type:'error',code:150},'*');</script>`
+  }));
 
   await page.goto('/');
   await page.waitForSelector('.page.active .card', { timeout: 60000 });
   await focusACard(page);
 
   await page.keyboard.press('Enter');
-  await page.waitForFunction(() => window.__controls.length >= 2, null, {
+  await page.waitForSelector('.player-page .player-error:not(.hidden)', {
+    timeout: 15000
+  });
+  const message = await page.locator('.player-page .player-error p').innerText();
+  expect(message).toContain('embedded');
+
+  await page.locator('.player-page .player-error [data-key="player:youtube"]').click();
+  await page.waitForFunction(() => window.__controls.length >= 1, null, {
     timeout: 15000
   });
 
   const controls = await page.evaluate(() => window.__controls);
-  expect(controls[0].operation).toBe('http://tizen.org/appcontrol/operation/view');
-  expect(controls[0].uri).toContain('https://www.youtube.com/watch?v=');
-  expect(controls[1].appId).toBe('111299001912');
-  expect(controls[1].data[0].key).toBe('PAYLOAD');
-  expect(controls[1].data[0].values[0]).toContain('v=');
+  expect(controls[0].operation).toBe('http://tizen.org/appcontrol/operation/default');
+  expect(controls[0].appId).toBe('111299001912');
+  expect(controls[0].data[0].key).toBe('PAYLOAD');
+  expect(controls[0].data[0].values[0]).toContain('v=');
+  expect(await page.locator('.player-page').count()).toBe(0);
+});
+
+test('hands a video to the Samsung YouTube app', async ({ page }) => {
+  await installTizenMock(page);
+  await page.route('**/health', (route) => route.fulfill({
+    status: 200,
+    contentType: 'application/json; charset=utf-8',
+    body: '{"ok":true,"upstream":"https://hackertube.org"}'
+  }));
+
+  await page.goto('/');
+  await page.waitForSelector('.page.active .card', { timeout: 60000 });
+  await focusACard(page);
+  await page.waitForFunction(() => !HT.player.available(), null, {
+    timeout: 10000
+  });
+
+  await page.keyboard.press('Enter');
+  await page.waitForFunction(() => window.__controls.length >= 1, null, {
+    timeout: 15000
+  });
+
+  const controls = await page.evaluate(() => window.__controls);
+  expect(controls[0].operation).toBe('http://tizen.org/appcontrol/operation/default');
+  expect(controls[0].appId).toBe('111299001912');
+  expect(controls[0].data[0].key).toBe('PAYLOAD');
+  expect(controls[0].data[0].values[0]).toContain('v=');
 });

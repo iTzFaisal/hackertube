@@ -1,7 +1,8 @@
 # HackerTube for Samsung TVs
 
 A Tizen web app for [HackerTube](https://hackertube.org): the videos Hacker
-News recommends, played in the YouTube app on your Samsung TV.
+News recommends, played in a built-in player on your Samsung TV, with a
+one-press handoff to the YouTube app when a video cannot be embedded.
 
 This is a port of the [Android TV app](https://github.com/ephraimduncan/hackertube.tv).
 Samsung TVs run **Tizen**, not Android TV, so the Kotlin/Compose app cannot be
@@ -16,7 +17,7 @@ installed on them. The pages, the look and the API are the same.
 - **Longs**, **Liked**, **History** and **Watch later**
 - **Categories** and **Playlists**
 - A video page with the summary, why HN recommends it, HN comments and "Up next"
-- OK plays a video in the TV's YouTube app; **hold OK** opens the video page
+- OK plays a video in the built-in player; **hold OK** opens the video page
 - Likes, dislikes, history and Watch later stay on the TV and shape the Home feed
 
 ![A video page](docs/details.png)
@@ -36,30 +37,44 @@ Studio.
 ## Requirements
 
 - A Samsung Smart TV running **Tizen 5.0 or newer** (roughly 2019 and later)
-- The YouTube app installed on the TV
+- The YouTube app installed on the TV (for videos that cannot be embedded)
 - A computer on the same network for the one-time install
 - Node.js 20+ on that computer (only when building from source)
-- A free Cloudflare account (only when deploying your own API proxy) — see below
+- A free Cloudflare account (only when deploying your own proxy) — see below
 - A Samsung developer account and/or [Tizen Homebrew](https://github.com/SushyDev/tizen-homebrew)
   for sideloading
 
 Release builds already point at the project's deployed API proxy, so you can
-skip the proxy and build sections below.
+skip the proxy and build sections below. The proxy must include the `/player`
+route for the in-app player; redeploy it once after upgrading from an older
+version.
 
 The app has been tested in Chromium at 1920×1080 and against the live
 HackerTube API. It has not been tested on every Samsung firmware. The
-focus handling and the YouTube handoff are the parts most likely to need a
+in-app player and the YouTube handoff are the parts most likely to need a
 small adjustment on an unusual model.
 
 ## Why there is a proxy
 
-`hackertube.org` does not send CORS headers. A packaged Tizen app runs from a
-`file://` origin, so the TV's webview will not let it read
-`https://hackertube.org/api/*` directly.
+The `proxy/` folder contains a small Cloudflare Worker with two jobs.
 
-The `proxy/` folder contains a small Cloudflare Worker that forwards only
-`/api/*` to hackertube.org and adds the missing header. It is read-only and
-does not store anything. Deploy it once, then build the app with its URL.
+**API CORS.** `hackertube.org` does not send CORS headers. A packaged Tizen
+app runs from a `file://` origin, so the TV's webview will not let it read
+`https://hackertube.org/api/*` directly. The Worker forwards `/api/*` to
+hackertube.org and adds the missing header.
+
+**The in-app player page.** YouTube's embedded player refuses `file://`
+origins with "Error 153". The Worker serves `/player`, a tiny HTTPS page that
+hosts the YouTube embed. The app embeds that page and controls it with
+`postMessage`, so YouTube sees a normal web origin.
+
+The Worker is read-only and does not store anything. Deploy it once, then
+build the app with its URL. If you use an older Worker that has no `/player`
+route, the app still works but falls back to the YouTube app for playback.
+
+The app derives the player URL from `apiBase`, since the same Worker serves
+both. Set `playerBase` in `app/js/config.js` only if the player page lives on
+a different host.
 
 ### 1. Deploy the proxy
 
@@ -79,6 +94,10 @@ Check it in a browser:
 ```sh
 curl "https://hackertube-proxy.your-name.workers.dev/api/feed?n=1"
 ```
+
+Open `https://hackertube-proxy.your-name.workers.dev/player?v=M7lc1UVf-VE`
+to confirm the player page loads. A black page with a YouTube video is the
+expected result.
 
 ### 2. Build the app with that URL
 
@@ -193,15 +212,18 @@ must be signed for that TV. That is what Tizen Homebrew or Tizen Studio does.
 | Remote                      | Action                                           |
 | --------------------------- | ------------------------------------------------ |
 | Arrows                      | Move focus                                       |
-| OK                          | Play the focused video in YouTube                |
+| OK                          | Play the focused video; play/pause in the player |
+| Left / Right (in player)    | Seek back / forward 10 seconds                   |
 | Hold OK (~0.6 s)            | Open the video page (summary, comments, Up next) |
-| Back / Return               | Go back; at the top screen, exit the app         |
+| Back / Return               | Exit the player, go back, or exit the app        |
 | Info                        | Open the focused video's page                    |
 | Red / Green / Yellow / Blue | Home / Search / Watch later / Categories         |
 
-On the video page, **Play on YouTube**, **Like**, **Not for me** and
-**Watch later** are ordinary focusable buttons. **Back** in YouTube returns to
-the same place in HackerTube.
+On the video page, **Play**, **YouTube app**, **Like**, **Not for me** and
+**Watch later** are ordinary focusable buttons. **Play** uses the in-app
+player; **YouTube app** always hands the video to the official app. If a
+video cannot be embedded, the player says so and offers **Play in YouTube
+app**. **Back** in YouTube returns to the same place in HackerTube.
 
 ## Development
 
@@ -211,8 +233,9 @@ npm run dev
 ```
 
 Open <http://127.0.0.1:4173/>. The dev server proxies `/api` to
-hackertube.org on the same origin, so no Cloudflare account is needed while
-working in a browser. Use the arrow keys and Enter, or a mouse.
+hackertube.org and serves the same `/player` page as the Worker, so no
+Cloudflare account is needed while working in a browser. Use the arrow keys
+and Enter, or a mouse.
 
 ```sh
 npm run check     # syntax + config.xml checks
@@ -235,11 +258,13 @@ app/                 the Tizen web application
     api.js           the hackertube.org API client
     library.js       likes, dislikes, history, Watch later (localStorage)
     focus.js         spatial D-pad focus and scrolling
+    player.js        the in-app player and its remote controls
     youtube.js       YouTube app control with the PAYLOAD fallback
     ui.js            cards, rows, chips, mosaics, comments
     screens.js       Home, Search, grids, categories, playlists, details
     app.js           sidebar, page stack, remote keys
-proxy/               Cloudflare Worker CORS proxy
+proxy/               Cloudflare Worker: CORS proxy and /player page
+  player-page.js     the HTTPS page the app embeds for playback
 scripts/             dev server, packaging, checks
 tests/               Playwright tests
 docs/                screenshots
@@ -254,12 +279,19 @@ docs/                screenshots
   along with a random seed, exactly like the Android TV app.
 - Your library is stored in `localStorage` on the TV. It is not sent anywhere
   except as those feed parameters.
-- Playing a video marks it seen and asks Tizen to open YouTube. The app first
-  tries an implicit `view` app control with the watch URL, then falls back to
-  Samsung's YouTube app (`111299001912`) with a `PAYLOAD` data key.
-- The app does not embed a YouTube player. YouTube's embedded player refuses
-  packaged-app origins, and the TV's YouTube app has the right playback,
-  HDR/4K and remote support.
+- Playing a video marks it seen and opens the in-app player. The player page
+  is served by the proxy and controlled with `postMessage`; the app keeps the
+  title, progress, play/pause and 10-second seeking on the remote.
+- If a video cannot be embedded (the owner disabled it, it is age-restricted,
+  or the player page is missing), the player offers the official YouTube app.
+  The handoff targets the Samsung YouTube app directly with a `PAYLOAD` data
+  key, then a `view` app control addressed to the app. It never falls back to
+  the TV browser.
+- The app does not embed YouTube directly in its own page: YouTube's embed
+  refuses `file://` origins with error 153. The proxy's `/player` page is the
+  workaround. It uses YouTube's own player, including its ads; the TV's
+  YouTube app remains the fallback for videos whose owners disabled embedding
+  and the better choice for 4K/HDR.
 
 ## Troubleshooting
 
@@ -276,9 +308,32 @@ docs/                screenshots
 : The API returned 429 or 503. Wait a minute and use **Try again**.
 
 **"Could not open YouTube"**
-: Make sure the YouTube app is installed and up to date. Some firmware ignores
-deep links and opens YouTube at its home screen; the app tries both known
-Tizen handoff methods. Back from YouTube should still return to HackerTube.
+: Make sure the YouTube app is installed and up to date. The app targets the
+Samsung YouTube app directly and never falls back to the TV browser. Some
+firmware ignores deep links and opens YouTube at its home screen; the app
+tries both known Tizen handoff methods. Back from YouTube should still return
+to HackerTube.
+
+**"The in-app player did not respond"**
+: The proxy Worker is older than the app, or `/player` is blocked. Redeploy the
+Worker (`npm run deploy:proxy`), then rebuild and reinstall the app. The app
+disables the player for the rest of the session after a timeout; restart the
+app to try again.
+
+**A video opens in the YouTube app instead of the in-app player**
+: The video's owner disabled embedding, or the proxy has no `/player` route.
+Use the **YouTube app** button on the video page. Redeploy the Worker, then
+restart the app to get the in-app player back for videos that allow embedding.
+
+**"This video can't be embedded"**
+: The uploader disabled embedding. Use **Play in YouTube app** in the player,
+or **YouTube app** on the video page. The official app can still play it.
+
+**The in-app player shows a black screen or an unsupported-browser message**
+: The TV's webview is too old for YouTube's embedded player. Use the
+**YouTube app** button; the official app still plays the video. The player
+offers that button automatically after a few seconds if playback does not
+start.
 
 **The app is not in the TV's app list**
 : Restart the TV after installing. Confirm Developer Mode is still on. If you

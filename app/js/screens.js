@@ -1188,12 +1188,20 @@
 
     clear(this.actionsEl);
 
-    this.actionsEl.appendChild(ui.pill('Play on YouTube', {
+    this.actionsEl.appendChild(ui.pill('Play', {
       key: 'play',
       icon: 'play',
       selected: true,
       onClick: function () {
         self.play(video);
+      }
+    }));
+
+    this.actionsEl.appendChild(ui.pill('YouTube app', {
+      key: 'youtube',
+      icon: 'open_in_new',
+      onClick: function () {
+        self.nav.openYouTube(video);
       }
     }));
 

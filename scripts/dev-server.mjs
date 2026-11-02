@@ -1,13 +1,15 @@
 /* A local server for the browser preview.
  *
- * It serves app/ and proxies /api to hackertube.org on the same origin, so
- * the app can be developed without deploying the Cloudflare Worker. The TV
- * itself cannot do this: it needs the proxy.
+ * It serves app/, proxies /api to hackertube.org on the same origin, and
+ * serves the same /player page as the deployed Worker. That lets the app be
+ * developed without deploying the Cloudflare Worker. The TV itself cannot do
+ * this: it needs the proxy.
  */
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { PLAYER_HTML } from '../proxy/player-page.js';
 
 const ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const APP = path.join(ROOT, 'app');
@@ -84,6 +86,20 @@ function serveFile(req, res, pathname) {
 
 const server = http.createServer((req, res) => {
   const url = new URL(req.url, 'http://localhost');
+  if (url.pathname === '/player' || url.pathname === '/player/') {
+    send(res, 200, PLAYER_HTML, {
+      'Content-Type': 'text/html; charset=utf-8',
+      'Referrer-Policy': 'strict-origin-when-cross-origin'
+    });
+    return;
+  }
+  if (url.pathname === '/health') {
+    send(res, 200, JSON.stringify({ ok: true, player: true }), {
+      'Content-Type': 'application/json; charset=utf-8',
+      'Access-Control-Allow-Origin': '*'
+    });
+    return;
+  }
   if (url.pathname.startsWith('/api/')) {
     proxy(req, res);
     return;
@@ -94,4 +110,5 @@ const server = http.createServer((req, res) => {
 server.listen(PORT, HOST, () => {
   console.log(`HackerTube preview: http://${HOST}:${PORT}/`);
   console.log(`API proxy:         http://${HOST}:${PORT}/api/feed`);
+  console.log(`Player page:       http://${HOST}:${PORT}/player`);
 });

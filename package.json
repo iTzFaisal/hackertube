@@ -1,6 +1,6 @@
 {
   "name": "hackertube-tizen",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "private": true,
   "license": "MIT",
   "description": "HackerTube for Samsung TVs: a Tizen web app for the videos Hacker News recommends.",

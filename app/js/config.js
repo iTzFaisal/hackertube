@@ -14,8 +14,17 @@
  *   the value into the build:
  *
  *     npm run package -- --api https://hackertube-proxy.example.workers.dev
+ *
+ * playerBase:
+ *   Optional URL of the in-app player page. Leave it empty to derive it from
+ *   apiBase (the same Worker serves /player). Set it only if the player page
+ *   lives on a different host.
+ *
+ * youtubeAppId:
+ *   Samsung's YouTube app id, used when a video has to be handed to YouTube.
  */
 window.HACKERTUBE_CONFIG = {
   apiBase: '',
+  playerBase: '',
   youtubeAppId: '111299001912'
 };

@@ -44,9 +44,12 @@
 
     this.buildSidebar();
     this.push(new HT.screens.HomePage(this, this.library));
+    if (HT.player && HT.player.check) {
+      HT.player.check();
+    }
     HT.youtube.check(function (available) {
       if (!available) {
-        /* The Play buttons still work; a failed launch shows a message. */
+        /* The in-app player still works; a failed handoff shows a message. */
         window.console && window.console.log &&
           window.console.log('YouTube app was not found by the app control check.');
       }
@@ -213,13 +216,28 @@
   App.prototype.play = function (video) {
     this.disarmFocus();
     this.library.markSeen(video.vid);
+    if (HT.player && HT.player.available()) {
+      this.push(new HT.player.PlayerPage(this, video));
+      return;
+    }
+    this.openYouTube(video);
+  };
+
+  App.prototype.openYouTube = function (video) {
+    var top = this.page();
+    if (top && top.isPlayer) {
+      this.pop();
+    }
+    this.library.markSeen(video.vid);
     var opened = HT.youtube.open(video.vid, function () {
-      HT.ui.toast('Could not open YouTube. Make sure the YouTube app is installed.');
+      HT.ui.toast('Could not open YouTube. Make sure the YouTube app is ' +
+        'installed and up to date.');
     });
     if (!opened) {
       HT.ui.toast('On your TV, this opens the YouTube app. (Browser preview.)');
       if (window.console && window.console.log) {
-        window.console.log('Play on YouTube: https://www.youtube.com/watch?v=' + video.vid);
+        window.console.log('Play on YouTube: https://www.youtube.com/watch?v=' +
+          video.vid);
       }
     }
   };
@@ -298,6 +316,12 @@
 
   App.prototype.onKeyDown = function (event) {
     var key = event.keyCode;
+    var top = this.page();
+
+    /* A full-screen player owns the remote while it is on top. */
+    if (top && top.handleKey && top.handleKey(event)) {
+      return;
+    }
 
     if (HT.Focus.isTextInput(event.target)) {
       if (key === 10009 || key === 27 || key === 461) {

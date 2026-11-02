@@ -8,6 +8,14 @@ const files = fs.readdirSync(path.join(ROOT, 'app', 'js'))
   .filter((name) => name.endsWith('.js'))
   .map((name) => path.join('app', 'js', name));
 
+/* The proxy and dev server are ES modules, but a syntax error there breaks
+ * the TV build just as badly as one in app/js. */
+files.push(
+  path.join('proxy', 'worker.js'),
+  path.join('proxy', 'player-page.js'),
+  path.join('scripts', 'dev-server.mjs')
+);
+
 for (const file of files) {
   const result = spawnSync(process.execPath, ['--check', path.join(ROOT, file)], {
     encoding: 'utf8'
