@@ -25,15 +25,26 @@ installed on them. The pages, the look and the API are the same.
 
 ![Playlists](docs/playlists.png)
 
+## Download
+
+Grab the latest `HackerTube.wgt` from
+[Releases](https://github.com/iTzFaisal/hackertube/releases/latest), then follow
+[Install on the TV](#install-on-the-tv). The package is unsigned: Tizen
+Homebrew re-signs it during install, or you can sign it yourself with Tizen
+Studio.
+
 ## Requirements
 
 - A Samsung Smart TV running **Tizen 5.0 or newer** (roughly 2019 and later)
 - The YouTube app installed on the TV
 - A computer on the same network for the one-time install
-- Node.js 20+ on that computer
-- A free Cloudflare account (for the API proxy) — see below
+- Node.js 20+ on that computer (only when building from source)
+- A free Cloudflare account (only when deploying your own API proxy) — see below
 - A Samsung developer account and/or [Tizen Homebrew](https://github.com/SushyDev/tizen-homebrew)
   for sideloading
+
+Release builds already point at the project's deployed API proxy, so you can
+skip the proxy and build sections below.
 
 The app has been tested in Chromium at 1920×1080 and against the live
 HackerTube API. It has not been tested on every Samsung firmware. The
